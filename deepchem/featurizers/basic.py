@@ -9,6 +9,7 @@ __author__ = "Steven Kearnes"
 __copyright__ = "Copyright 2014, Stanford University"
 __license__ = "LGPL v2.1+"
 
+from rdkit import Chem
 from rdkit.Chem import Descriptors
 from deepchem.featurizers import Featurizer
 
@@ -62,3 +63,23 @@ class RDKitDescriptors(Featurizer):
     for function in self.functions:
         rval.append(function(mol))
     return rval
+
+
+class DistanceMatrix(Featurizer):
+  """
+  Matrix of Atom-Atom distance.
+  """
+  name = ['distance_matrix']
+
+  def _featurize(self, mol):
+    """
+    Calculate distance matrix.
+
+    Parameters
+    ----------
+    mol : RDKit Mol
+        Molecule.
+    """
+    dm = Chem.Get3DDistanceMatrix(mol)
+    dm = [dm]
+    return dm
