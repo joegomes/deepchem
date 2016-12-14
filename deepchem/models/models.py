@@ -162,6 +162,8 @@ class Model(object):
     """
     y_preds = []
     n_tasks = self.get_num_tasks()
+    if pad_batches:
+      batch_size = self.batch_size
     ind = 0
     for (X_batch, _, _, ids_batch) in dataset.iterbatches(
         batch_size, deterministic=True):
