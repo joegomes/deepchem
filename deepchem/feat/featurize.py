@@ -347,7 +347,7 @@ class DataLoader(object):
     ############################################################## TIMING
     time1 = time.time()
     ############################################################## TIMING
-    df[featurizer.feature_fields] = df[featurizer.feature_fields].apply(pd.to_numeric)
+    #df[featurizer.feature_fields] = df[featurizer.feature_fields].apply(pd.to_numeric)
     X_shard = df.as_matrix(columns=featurizer.feature_fields)
     df[featurizer.__class__.__name__] = [np.array(elt) for elt in X_shard.tolist()]
     ############################################################## TIMING
