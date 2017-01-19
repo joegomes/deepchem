@@ -688,7 +688,6 @@ class TensorflowRegressor(TensorflowGraphModel):
     len_unpadded = len(X)
     if pad_batch:
       X = pad_features(self.batch_size, X)
-    
     if not self._restored_model:
       self.restore()
     with self.eval_graph.graph.as_default():

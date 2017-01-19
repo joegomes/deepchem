@@ -152,7 +152,7 @@ class Model(object):
     return X, y, w
 
   def predict(self, dataset, transformers=[], batch_size=None,
-              pad_batches=False):
+              pad_batch=False):
     """
     Uses self to make predictions on provided Dataset object.
 
@@ -162,10 +162,16 @@ class Model(object):
     y_preds = []
     n_tasks = self.get_num_tasks()
     ind = 0
+
+    try:
+      batch_size = self.batch_size
+    except:
+      batch_size = batch_size
+    
     for (X_batch, _, _, ids_batch) in dataset.iterbatches(
         batch_size, deterministic=True):
       n_samples = len(X_batch)
-      y_pred_batch = self.predict_on_batch(X_batch, pad_batch=pad_batches)
+      y_pred_batch = self.predict_on_batch(X_batch, pad_batch=pad_batch)
       # Discard any padded predictions
       y_pred_batch = y_pred_batch[:n_samples]
       y_pred_batch = np.reshape(y_pred_batch, (n_samples, n_tasks))

@@ -66,7 +66,7 @@ class Evaluator(object):
         csvwriter.writerow([mol_id] + list(y_pred))
 
   def compute_model_performance(self, metrics, csv_out=None, stats_out=None,
-                                threshold=None):
+                                threshold=None, pad_batch=False):
     """
     Computes statistics of model on test data and saves results to csv.
     """
@@ -83,7 +83,7 @@ class Evaluator(object):
       y_pred_print = self.model.predict(
           self.dataset, self.output_transformers).astype(int)
     else:
-      y_pred = self.model.predict(self.dataset, self.output_transformers)
+      y_pred = self.model.predict(self.dataset, self.output_transformers, pad_batch=pad_batch)
       y_pred_print = y_pred
     multitask_scores = {}
 
