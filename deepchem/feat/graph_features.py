@@ -143,6 +143,7 @@ class ConvMolFeaturizer(Featurizer):
   def _featurize(self, mol):
     """Encodes mol as a ConvMol object."""
     # Get the node features
+    mol.RemoveHs(sanitize=False)
     idx_nodes = [(a.GetIdx(), atom_features(a)) for a in mol.GetAtoms()]
     idx_nodes.sort()  # Sort by ind to ensure same order as rd_kit
     idx, nodes = list(zip(*idx_nodes))
