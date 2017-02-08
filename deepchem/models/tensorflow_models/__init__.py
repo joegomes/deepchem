@@ -298,12 +298,16 @@ class TensorflowGraphModel(Model):
     time1 = time.time()
     ############################################################## TIMING
     log("Training for %d epochs" % nb_epoch, self.verbose)
+    if not self._restored_model:
+      self.restore_train()
     with self.train_graph.graph.as_default():
       train_op = self.get_training_op(
           self.train_graph.graph, self.train_graph.loss)
+      tf.add_to_collection('train_op', train_op)
       with self._get_shared_session(train=True) as sess:
         sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver(max_to_keep=max_checkpoints_to_keep)
+        tf.add_to_collection('train_op', train_op)
         # Save an initial checkpoint.
         saver.save(sess, self._save_path, global_step=0)
         for epoch in range(nb_epoch):
@@ -439,7 +443,7 @@ class TensorflowGraphModel(Model):
       return self.eval_graph.session
 
   def restore(self):
-    """Restores the model from the provided training checkpoint.
+    """Restores the model eval graph from the provided training checkpoint.
 
     Args:
       checkpoint: string. Path to checkpoint file.
@@ -451,6 +455,22 @@ class TensorflowGraphModel(Model):
       # TODO(rbharath): Is setting train=False right here?
       saver = tf.train.Saver()
       saver.restore(self._get_shared_session(train=False),
+                    last_checkpoint)
+      self._restored_model = True
+
+  def restore_train(self):
+    """Restores the model train graph from the provided training checkpoint.
+
+    Args:
+      checkpoint: string. Path to checkpoint file.
+    """
+    if self._restored_model:
+      return
+    with self.train_graph.graph.as_default():
+      last_checkpoint = self._find_last_checkpoint()
+      last_meta_graph = last_checkpoint + ".meta"
+      saver = tf.train.import_meta_graph(last_meta_graph)
+      saver.restore(self._get_shared_session(train=True),
                     last_checkpoint)
       self._restored_model = True
 
