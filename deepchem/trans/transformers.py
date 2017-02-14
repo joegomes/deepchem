@@ -233,8 +233,9 @@ class ClippingTransformer(Transformer):
     return (X, y, w)
 
   def untransform(self, z):
-    raise NotImplementedError(
-      "Cannot untransform datasets with ClippingTransformer.")
+    return z
+    #raise NotImplementedError(
+    #  "Cannot untransform datasets with ClippingTransformer.")
 
 class LogTransformer(Transformer):
 
