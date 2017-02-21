@@ -185,6 +185,263 @@ class TensorflowMultiTaskRegressor(TensorflowRegressor):
         orig_dict["weights_%d" % task] = np.ones((self.batch_size,))
     return TensorflowGraph.get_feed_dict(orig_dict)
 
+class TensorflowAdversarialMultiTaskClassifier(TensorflowMultiTaskClassifier):
+  """ Adversarial training multitask classifier """
+
+  def get_placeholders(self):
+    
+    n_features = self.n_features
+    mol_features = tf.placeholder(tf.float32, shape=[None, n_features], name='mol_features')
+    return mol_features
+
+  def construct_graph(self, training, seed):
+    """Returns a TensorflowGraph object."""
+    graph = tf.Graph() 
+
+    # Lazily created by _get_shared_session().
+    shared_session = None
+
+    # Cache of TensorFlow scopes, to prevent '_1' appended scope names
+    # when subclass-overridden methods use the same scopes.
+    name_scopes = {}
+    eps = 0.1
+
+    # Setup graph
+    with graph.as_default():
+      if seed is not None:
+        tf.set_random_seed(seed)
+      x = self.get_placeholders()
+      output = self.model(graph, x, name_scopes, training)
+      labels = self.add_label_placeholders(graph, name_scopes)
+      weights = self.add_example_weight_placeholders(graph, name_scopes)
+
+      if training:
+
+        print("Constructing adversarial training graph")
+        loss_1 = self.add_training_cost(graph, name_scopes, output, labels, weights)
+        print("Calculated loss on true examples")
+        grad, = tf.gradients(loss_1, x)
+        signed_grad = tf.sign(grad)
+        scaled_signed_grad = eps * signed_grad
+        adv_x = tf.stop_gradient(x + scaled_signed_grad)
+        adv_output = self.model(graph, adv_x, name_scopes, training)
+        print("Calculated adversarial output")
+        loss_2 = self.add_training_cost(graph, name_scopes, adv_output, labels, weights)
+        print("Calculated loss on adversarial examples")
+        loss = (loss_1 + loss_2)/2.
+
+    if not training:
+      loss = None
+      output = self.add_output_ops(graph, output)  # add softmax heads
+    return TensorflowGraph(graph=graph,
+                           session=shared_session,
+                           name_scopes=name_scopes,
+                           output=output,
+                           labels=labels,
+                           weights=weights,
+                           loss=loss)
+  
+  def model(self, graph, x, name_scopes, training):
+    """Constructs the graph architecture as specified in its config.
+
+    This method creates the following Placeholders:
+      mol_features: Molecule descriptor (e.g. fingerprint) tensor with shape
+        batch_size x n_features.
+    """
+    n_features = self.n_features
+    with graph.as_default():
+
+      layer_sizes = self.layer_sizes
+      weight_init_stddevs = self.weight_init_stddevs
+      bias_init_consts = self.bias_init_consts
+      dropouts = self.dropouts
+      lengths_set = {
+          len(layer_sizes),
+          len(weight_init_stddevs),
+          len(bias_init_consts),
+          len(dropouts),
+      }
+      assert len(lengths_set) == 1, 'All layer params must have same length.'
+      n_layers = lengths_set.pop()
+      assert n_layers > 0, 'Must have some layers defined.'
+
+      prev_layer = x
+      prev_layer_size = n_features
+      for i in range(n_layers):
+        layer = tf.nn.relu(
+            model_ops.fully_connected_layer(
+                tensor=prev_layer,
+                size=layer_sizes[i],
+                weight_init=tf.truncated_normal(
+                    shape=[prev_layer_size, layer_sizes[i]],
+                    stddev=weight_init_stddevs[i]),
+                bias_init=tf.constant(
+                    value=bias_init_consts[i], shape=[layer_sizes[i]])))
+        layer = model_ops.dropout(layer, dropouts[i], training)
+        prev_layer = layer
+        prev_layer_size = layer_sizes[i]
+
+      output = model_ops.multitask_logits(layer, self.n_tasks)
+    return output
+ 
+  def fit(self, dataset, nb_epoch=10, max_checkpoints_to_keep=5, 
+	  log_every_N_batches=50, **kwargs):
+    """Fit the model.
+
+    Parameters
+    ---------- 
+    dataset: dc.data.Dataset
+      Dataset object holding training data 
+    nb_epoch: 10
+      Number of training epochs.
+    max_checkpoints_to_keep: int
+      Maximum number of checkpoints to keep; older checkpoints will be deleted.
+    log_every_N_batches: int
+      Report every N batches. Useful for training on very large datasets,
+      where epochs can take long time to finish.
+
+    Raises
+    ------
+    AssertionError
+      If model is not in training mode.
+    """
+    time1 = time.time()
+    log("Training for %d epochs" % nb_epoch, self.verbose)
+    with self.train_graph.graph.as_default():
+      train_op = self.get_training_op(
+          self.train_graph.graph, self.train_graph.loss)
+      with self._get_shared_session(train=True) as sess:
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver(max_to_keep=max_checkpoints_to_keep)
+        saver.save(sess, self._save_path, global_step=0)
+        for epoch in range(nb_epoch):
+          avg_loss, n_batches = 0., 0
+          for ind, (X_b, y_b, w_b, ids_b) in enumerate(
+              dataset.iterbatches(self.batch_size, pad_batches=self.pad_batches)):
+            if ind % log_every_N_batches == 0:
+              log("On batch %d" % ind, self.verbose)
+            feed_dict = self.construct_feed_dict(X_b, y_b, w_b, ids_b)
+            fetches = [train_op, self.train_graph.loss]
+            fetched_values = sess.run(fetches, feed_dict=feed_dict)
+            loss = fetched_values[-1]
+            avg_loss += loss
+            n_batches += 1
+          saver.save(sess, self._save_path, global_step=epoch)
+          avg_loss = float(avg_loss)/n_batches
+          log('Ending epoch %d: Average loss %g' % (epoch, avg_loss), self.verbose)
+        saver.save(sess, self._save_path, global_step=epoch+1)
+    time2 = time.time()
+    print("TIMING: model fitting took %0.3f s" % (time2-time1), self.verbose)
+
+class TensorflowAdversarialMultiTaskRegressor(TensorflowMultiTaskRegressor):
+  """ Adversarial training multitask regressor """
+
+  def get_placeholders(self):
+    
+    n_features = self.n_features
+    x = tf.placeholder(tf.float32, shape=[None, n_features], name='mol_features')
+    return x
+
+  def construct_graph(self, training, seed):
+    """Returns a TensorflowGraph object."""
+    graph = tf.Graph() 
+
+    # Lazily created by _get_shared_session().
+    shared_session = None
+
+    # Cache of TensorFlow scopes, to prevent '_1' appended scope names
+    # when subclass-overridden methods use the same scopes.
+    name_scopes = {}
+    eps = 0.1
+
+    # Setup graph
+    with graph.as_default():
+      if seed is not None:
+        tf.set_random_seed(seed)
+      x = self.get_placeholders()
+      output = self.model(graph, x, name_scopes, training)
+      labels = self.add_label_placeholders(graph, name_scopes)
+      weights = self.add_example_weight_placeholders(graph, name_scopes)
+
+      if training:
+
+        print("Constructing adversarial training graph")
+        loss_1 = self.add_training_cost(graph, name_scopes, output, labels, weights)
+        print("Calculated loss on true examples")
+        grad, = tf.gradients(loss_1, x)
+        signed_grad = tf.sign(grad)
+        scaled_signed_grad = eps * signed_grad
+        adv_x = tf.stop_gradient(x + scaled_signed_grad)
+        adv_output = self.model(graph, adv_x, name_scopes, training)
+        print("Calculated adversarial output")
+        loss_2 = self.add_training_cost(graph, name_scopes, adv_output, labels, weights)
+        print("Calculated loss on adversarial examples")
+        loss = (loss_1 + loss_2)/2.
+
+    if not training:
+      loss = None
+      output = self.add_output_ops(graph, output)  # add softmax heads
+    return TensorflowGraph(graph=graph,
+                           session=shared_session,
+                           name_scopes=name_scopes,
+                           output=output,
+                           labels=labels,
+                           weights=weights,
+                           loss=loss)
+
+  def model(self, graph, x, name_scopes, training):
+    """Constructs the graph architecture as specified in its config.
+
+    This method creates the following Placeholders:
+      mol_features: Molecule descriptor (e.g. fingerprint) tensor with shape
+        batch_size x n_features.
+    """
+    n_features = self.n_features
+    with graph.as_default():
+      
+      layer_sizes = self.layer_sizes
+      weight_init_stddevs = self.weight_init_stddevs
+      bias_init_consts = self.bias_init_consts
+      dropouts = self.dropouts
+      lengths_set = {
+          len(layer_sizes),
+          len(weight_init_stddevs),
+          len(bias_init_consts),
+          len(dropouts),
+      }
+      assert len(lengths_set) == 1, 'All layer params must have same length.'
+      n_layers = lengths_set.pop()
+      assert n_layers > 0, 'Must have some layers defined.'
+
+      prev_layer = x
+      prev_layer_size = n_features
+      for i in range(n_layers):
+        layer = tf.nn.relu(
+            model_ops.fully_connected_layer(
+                tensor=prev_layer,
+                size=layer_sizes[i],
+                weight_init=tf.truncated_normal(
+                    shape=[prev_layer_size, layer_sizes[i]],
+                    stddev=weight_init_stddevs[i]),
+                bias_init=tf.constant(
+                    value=bias_init_consts[i], shape=[layer_sizes[i]])))
+        layer = model_ops.dropout(layer, dropouts[i], training)
+        prev_layer = layer
+        prev_layer_size = layer_sizes[i]
+
+      output = []
+      for task in range(self.n_tasks):
+        output.append(
+            tf.squeeze(
+                model_ops.fully_connected_layer(
+                    tensor=prev_layer,
+                    size=layer_sizes[i],
+                    weight_init=tf.truncated_normal(
+                        shape=[prev_layer_size, 1],
+                        stddev=weight_init_stddevs[i]),
+                    bias_init=tf.constant(value=bias_init_consts[i], shape=[1
+                                                                           ]))))
+      return output
 
 class TensorflowMultiTaskFitTransformRegressor(TensorflowMultiTaskRegressor):
   """Implements a TensorflowMultiTaskRegressor that performs on-the-fly transformation during fit/predict
