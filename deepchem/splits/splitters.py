@@ -26,7 +26,7 @@ from deepchem.utils.save import load_data
 
 def generate_scaffold(smiles, include_chirality=False):
   """Compute the Bemis-Murcko scaffold for a SMILES string."""
-  mol = Chem.MolFromSmiles(smiles)
+  mol = Chem.MolFromSmiles(smiles, sanitize=False)
   engine = ScaffoldGenerator(include_chirality=include_chirality)
   scaffold = engine.get_scaffold(mol)
   return scaffold
@@ -71,6 +71,8 @@ class Splitter(object):
           frac_train=frac_fold,
           frac_valid=1 - frac_fold,
           frac_test=0)
+      print(len(fold_inds))
+      np.savetxt("fold_"+str(fold)+".txt", fold_inds)
       fold_dataset = rem_dataset.select(fold_inds, fold_dir)
       rem_dir = tempfile.mkdtemp()
       rem_dataset = rem_dataset.select(rem_inds, rem_dir)
@@ -104,6 +106,12 @@ class Splitter(object):
         frac_test=frac_test,
         frac_valid=frac_valid,
         log_every_n=log_every_n)
+    np.savetxt('train.txt', train_inds)
+    np.savetxt('valid.txt', valid_inds)
+    np.savetxt('test.txt', test_inds)
+    print(len(train_inds))
+    print(len(valid_inds))
+    print(len(test_inds))
     if train_dir is None:
       train_dir = tempfile.mkdtemp()
     if valid_dir is None:
@@ -476,6 +484,32 @@ class MolecularWeightSplitter(Splitter):
     return (sortidx[:train_cutoff], sortidx[train_cutoff:valid_cutoff],
             sortidx[valid_cutoff:])
 
+class IdsSplitter(Splitter):
+  """
+  Class for doing data splits based on the ids field.
+  """
+  def split(self,
+            dataset,
+            seed=None,
+            frac_train=.8,
+            frac_valid=.1,
+            frac_test=.1,
+            log_every_n=None):
+    """
+    Spliter internal compounds into train/validation/test using the ids field.
+    """
+    np.testing.assert_almost_equal(frac_train + frac_valid + frac_test, 1.)
+    if not seed is None:
+      np.random.seed(seed)
+
+    ids = dataset.ids
+    sortidx = np.argsort(ids)
+
+    train_cutoff = frac_train * len(sortidx)    
+    valid_cutoff = (frac_train + frac_valid) * len(sortidx)
+
+    return (sortidx[:train_cutoff], sortidx[train_cutoff:valid_cutoff],
+            sortidx[valid_cutoff:])
 
 class RandomSplitter(Splitter):
   """
@@ -562,8 +596,7 @@ class IndiceSplitter(Splitter):
       self.valid_indices = []
     if self.test_indices is None:
       self.test_indices = []
-    valid_test = self.valid_indices
-    valid_test.extend(self.test_indices)
+    valid_test = self.valid_indices + self.test_indices
     for indice in indices:
       if not indice in valid_test:
         train_indices.append(indice)
@@ -657,24 +690,33 @@ class ScaffoldSplitter(Splitter):
     np.testing.assert_almost_equal(frac_train + frac_valid + frac_test, 1.)
     scaffolds = {}
     log("About to generate scaffolds", self.verbose)
-    data_len = len(dataset)
-    for ind, smiles in enumerate(dataset.ids):
-      if ind % log_every_n == 0:
-        log("Generating scaffold %d/%d" % (ind, data_len), self.verbose)
-      scaffold = generate_scaffold(smiles)
+    #data_len = len(dataset)
+    #for ind, smiles in enumerate(dataset.ids):
+    #  if ind % log_every_n == 0:
+    #    log("Generating scaffold %d/%d" % (ind, data_len), self.verbose)
+    #  scaffold = generate_scaffold(smiles)
+    #  if scaffold not in scaffolds:
+    #    scaffolds[scaffold] = [ind]
+    #  else:
+    #    scaffolds[scaffold].append(ind)
+    # Sort from largest to smallest scaffold sets
+    for ind, scaffold in enumerate(dataset.ids):
       if scaffold not in scaffolds:
         scaffolds[scaffold] = [ind]
       else:
         scaffolds[scaffold].append(ind)
-    # Sort from largest to smallest scaffold sets
     scaffolds = {key: sorted(value) for key, value in scaffolds.items()}
     scaffold_sets = [
         scaffold_set
         for (scaffold, scaffold_set) in sorted(
             scaffolds.items(), key=lambda x: (len(x[1]), x[1][0]), reverse=True)
     ]
-    train_cutoff = frac_train * len(dataset)
-    valid_cutoff = (frac_train + frac_valid) * len(dataset)
+    print(scaffold_sets)
+    train_cutoff = frac_train * len(dataset.ids)
+    valid_cutoff = (frac_train + frac_valid) * len(dataset.ids)
+    print(len(dataset.ids))
+    print(train_cutoff)
+    print(valid_cutoff)
     train_inds, valid_inds, test_inds = [], [], []
     log("About to sort in scaffold sets", self.verbose)
     for scaffold_set in scaffold_sets:
