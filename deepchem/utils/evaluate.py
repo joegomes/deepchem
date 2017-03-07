@@ -47,7 +47,7 @@ class Evaluator(object):
     with open(stats_out, "w") as statsfile:
       statsfile.write(str(scores) + "\n")
 
-  def output_predictions(self, y_preds, csv_out):
+  def output_predictions(self, ys, y_preds, csv_out):
     """
     Writes predictions to file.
 
@@ -57,13 +57,15 @@ class Evaluator(object):
     """
     mol_ids = self.dataset.ids
     n_tasks = len(self.task_names)
+    ys = np.reshape(ys, (len(y_preds), n_tasks))
     y_preds = np.reshape(y_preds, (len(y_preds), n_tasks))
     assert len(y_preds) == len(mol_ids)
+    assert len(ys) == len(mol_ids)
     with open(csv_out, "w") as csvfile:
       csvwriter = csv.writer(csvfile)
-      csvwriter.writerow(["Compound"] + self.dataset.get_task_names())
-      for mol_id, y_pred in zip(mol_ids, y_preds):
-        csvwriter.writerow([mol_id] + list(y_pred))
+      csvwriter.writerow(["Compound"] + ["0_true", "0_pred"])
+      for mol_id, y, y_pred in zip(mol_ids, ys, y_preds):
+        csvwriter.writerow([mol_id] + list(y) + list(y_pred))
 
   def compute_model_performance(self, metrics, csv_out=None, stats_out=None,
                                 per_task_metrics=False):
@@ -101,7 +103,7 @@ class Evaluator(object):
 
     if csv_out is not None:
       log("Saving predictions to %s" % csv_out, self.verbose)
-      self.output_predictions(y_pred_print, csv_out)
+      self.output_predictions(y, y_pred_print, csv_out)
 
     # Compute multitask metrics
     for metric in metrics:
