@@ -47,6 +47,9 @@ def load_hopv(featurizer='ECFP', split='index'):
       'scaffold': dc.splits.ScaffoldSplitter(),
       'butina': dc.splits.ButinaSplitter()
   }
-  splitter = splitters[split]
-  train, valid, test = splitter.train_valid_test_split(dataset)
-  return hopv_tasks, (train, valid, test), transformers
+  if split is not None:
+    splitter = splitters[split]
+    train, valid, test = splitter.train_valid_test_split(dataset)
+    return hopv_tasks, (train, valid, test), transformers
+  else:
+    return hopv_tasks, dataset, transformers
