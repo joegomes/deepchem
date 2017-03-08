@@ -142,6 +142,54 @@ class Splitter(object):
         verbose=verbose)
     return train_dataset, test_dataset
 
+  def train_valid_test_indices(self,
+                             dataset,
+                             train_dir=None,
+                             valid_dir=None,
+                             test_dir=None,
+                             frac_train=.8,
+                             frac_valid=.1,
+                             frac_test=.1,
+                             seed=None,
+                             log_every_n=1000,
+                             verbose=True):
+    """
+    Splits self into train/validation/test sets.
+
+    Returns Dataset objects.
+    """
+    log("Computing train/valid/test indices", self.verbose)
+    train_inds, valid_inds, test_inds = self.split(
+        dataset,
+        frac_train=frac_train,
+        frac_test=frac_test,
+        frac_valid=frac_valid,
+        log_every_n=log_every_n)
+    return train_inds, valid_inds, test_inds
+
+  def train_test_indices(self,
+                       dataset,
+                       train_dir=None,
+                       test_dir=None,
+                       seed=None,
+                       frac_train=.8,
+                       verbose=True):
+    """
+    Splits self into train/test sets.
+    Returns Dataset objects.
+    """
+    valid_dir = None
+    train_inds, _, test_inds = self.train_valid_test_indices(
+        dataset,
+        train_dir,
+        valid_dir,
+        test_dir,
+        frac_train=frac_train,
+        frac_test=1 - frac_train,
+        frac_valid=0.,
+        verbose=verbose)
+    return train_inds, test_inds
+
   def split(self,
             dataset,
             frac_train=None,
