@@ -188,10 +188,16 @@ class TensorflowMultiTaskRegressor(TensorflowRegressor):
 class TensorflowAdversarialMultiTaskClassifier(TensorflowMultiTaskClassifier):
   """ Adversarial training multitask classifier """
 
-  def get_placeholders(self):
-    
+  def get_placeholders(self, graph, name_scopes):
+    """Initializes placeholders"""
+    placeholder_root = "placeholders"
+    placeholder_scope = TensorflowGraph.shared_name_scope(placeholder_root, 
+                          graph, name_scopes)
     n_features = self.n_features
-    mol_features = tf.placeholder(tf.float32, shape=[None, n_features], name='mol_features')
+    with graph.as_default():
+      with placeholder_scope:
+        mol_features = tf.placeholder(tf.float32, shape=[None, n_features], 
+                      name='mol_features')
     return mol_features
 
   def construct_graph(self, training, seed):
@@ -210,7 +216,7 @@ class TensorflowAdversarialMultiTaskClassifier(TensorflowMultiTaskClassifier):
     with graph.as_default():
       if seed is not None:
         tf.set_random_seed(seed)
-      x = self.get_placeholders()
+      x = self.get_placeholders(graph, name_scopes)
       output = self.model(graph, x, name_scopes, training)
       labels = self.add_label_placeholders(graph, name_scopes)
       weights = self.add_example_weight_placeholders(graph, name_scopes)

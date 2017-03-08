@@ -718,7 +718,7 @@ class DiskDataset(Dataset):
     """Creates a DiskDataset object from specified Numpy arrays."""
     #if data_dir is None:
     #  data_dir = tempfile.mkdtemp()
-    n_samples = len(X)
+    n_samples = X.shape[0]
     # The -1 indicates that y will be reshaped to have length -1
     if n_samples > 0:
       y = np.reshape(y, (n_samples, -1))
