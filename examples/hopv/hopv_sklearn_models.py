@@ -18,12 +18,18 @@ hopv_tasks, hopv_datasets, transformers = load_hopv()
 (train_dataset, valid_dataset, test_dataset) = hopv_datasets
 
 # Fit models
-metric = [dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
-          dc.metrics.Metric(dc.metrics.mean_absolute_error, np.mean, mode="regression")]
+metric = [
+    dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
+    dc.metrics.Metric(
+        dc.metrics.mean_absolute_error, np.mean, mode="regression")
+]
+
 
 def model_builder(model_dir):
   sklearn_model = RandomForestRegressor(n_estimators=500)
   return dc.models.SklearnModel(sklearn_model, model_dir)
+
+
 model = dc.models.SingletaskToMultitask(hopv_tasks, model_builder)
 
 # Fit trained model

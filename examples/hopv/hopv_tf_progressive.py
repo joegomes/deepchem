@@ -20,12 +20,19 @@ hopv_tasks, hopv_datasets, transformers = load_hopv()
 train_dataset, valid_dataset, test_dataset = hopv_datasets
 
 # Fit models
-metric = [dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
-          dc.metrics.Metric(dc.metrics.mean_absolute_error, np.mean, mode="regression")]
+metric = [
+    dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
+    dc.metrics.Metric(
+        dc.metrics.mean_absolute_error, np.mean, mode="regression")
+]
 
 model = dc.models.ProgressiveMultitaskRegressor(
-    len(hopv_tasks), n_features, layer_sizes=[1000], dropouts=[.25],
-    learning_rate=0.001, batch_size=50)
+    len(hopv_tasks),
+    n_features,
+    layer_sizes=[1000],
+    dropouts=[.25],
+    learning_rate=0.001,
+    batch_size=50)
 
 # Fit trained model
 model.fit(train_dataset, nb_epoch=25)

@@ -17,8 +17,11 @@ hopv_tasks, hopv_datasets, transformers = load_hopv(featurizer='GraphConv')
 train_dataset, valid_dataset, test_dataset = hopv_datasets
 
 # Fit models
-metric = [dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
-          dc.metrics.Metric(dc.metrics.mean_absolute_error, np.mean, mode="regression")]
+metric = [
+    dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
+    dc.metrics.Metric(
+        dc.metrics.mean_absolute_error, np.mean, mode="regression")
+]
 
 # Number of features on conv-mols
 n_feat = 75

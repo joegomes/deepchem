@@ -18,21 +18,31 @@ hopv_tasks, hopv_datasets, transformers = load_hopv()
 train_dataset, valid_dataset, test_dataset = hopv_datasets
 
 # Fit models
-metric = [dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
-          dc.metrics.Metric(dc.metrics.mean_absolute_error, np.mean, mode="regression")]
+metric = [
+    dc.metrics.Metric(dc.metrics.pearson_r2_score, np.mean, mode="regression"),
+    dc.metrics.Metric(
+        dc.metrics.mean_absolute_error, np.mean, mode="regression")
+]
 
 n_layers = 1
 n_bypass_layers = 1
 nb_epoch = 25
 model = dc.models.RobustMultitaskRegressor(
-    len(hopv_tasks), train_dataset.get_data_shape()[0],
-    layer_sizes=[500]*n_layers, bypass_layer_sizes=[50]*n_bypass_layers,
-    dropouts=[.25]*n_layers, bypass_dropouts=[.25]*n_bypass_layers, 
-    weight_init_stddevs=[.02]*n_layers, bias_init_consts=[.5]*n_layers,
-    bypass_weight_init_stddevs=[.02]*n_bypass_layers,
-    bypass_bias_init_consts=[.5]*n_bypass_layers,
-    learning_rate=.0003, penalty=.0001, penalty_type="l2",
-    optimizer="adam", batch_size=100)
+    len(hopv_tasks),
+    train_dataset.get_data_shape()[0],
+    layer_sizes=[500] * n_layers,
+    bypass_layer_sizes=[50] * n_bypass_layers,
+    dropouts=[.25] * n_layers,
+    bypass_dropouts=[.25] * n_bypass_layers,
+    weight_init_stddevs=[.02] * n_layers,
+    bias_init_consts=[.5] * n_layers,
+    bypass_weight_init_stddevs=[.02] * n_bypass_layers,
+    bypass_bias_init_consts=[.5] * n_bypass_layers,
+    learning_rate=.0003,
+    penalty=.0001,
+    penalty_type="l2",
+    optimizer="adam",
+    batch_size=100)
 
 # Fit trained model
 model.fit(train_dataset, nb_epoch=nb_epoch)
