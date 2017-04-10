@@ -65,7 +65,7 @@ class Evaluator(object):
     assert len(y_preds) == len(mol_ids)
     with open(csv_out, "w") as csvfile:
       csvwriter = csv.writer(csvfile)
-      csvwriter.writerow(["Compound"] + self.dataset.get_task_names())
+      csvwriter.writerow(["Compound"] + [str(x) for x in self.dataset.get_task_names()])
       for mol_id, y_pred in zip(mol_ids, y_preds):
         csvwriter.writerow([mol_id] + list(y_pred))
 
