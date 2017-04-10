@@ -974,7 +974,8 @@ class DiskDataset(Dataset):
 
   def get_shape(self):
     """Finds shape of dataset."""
-    n_tasks = len(self.get_task_names())
+    n_tasks = self.w.shape[1]
+    #n_tasks = len(self.get_task_names())
     X_shape = np.array((0,) + (0,) * len(self.get_data_shape()))
     ids_shape = np.array((0,))
     if n_tasks > 0:
