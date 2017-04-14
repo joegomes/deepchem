@@ -79,7 +79,7 @@ bias_init_consts = [0. for x in layer_sizes]
 penalty_type = "l2"
 penalty = 0.
 dropouts = [0.25, 0.25, 0.]
-learning_rate = 0.002
+learning_rate = 0.001
 momentum = 0.8
 batch_size = 24
 
@@ -109,7 +109,7 @@ model = TensorflowFragmentRegressor(
     seed=seed)
 
 # Fit model
-model.fit(train_dataset, nb_epoch=100)
+model.fit(train_dataset, nb_epoch=10)
 
 # Evaluate model
 metric = [

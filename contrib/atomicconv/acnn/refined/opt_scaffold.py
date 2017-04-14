@@ -109,7 +109,7 @@ model = TensorflowFragmentRegressor(
     seed=seed)
 
 # Fit model
-model.fit(train_dataset, nb_epoch=100)
+model.fit(train_dataset, nb_epoch=10)
 
 # Evaluate model
 metric = [
