@@ -1,0 +1,44 @@
+random:
+
+computed_metrics: [0.52239608293475936]
+computed_metrics: [0.74546113214553034]
+Train scores
+{'pearson_r2_score': 0.52239608293475936, 'mean_absolute_error': 0.74546113214553034}
+computed_metrics: [0.53577656068333701]
+computed_metrics: [0.73228945828949799]
+Test scores
+{'pearson_r2_score': 0.53577656068333701, 'mean_absolute_error': 0.73228945828949799}
+
+scaffold:
+
+computed_metrics: [0.47344758510546942]
+computed_metrics: [0.73410667094541648]
+Train scores
+{'pearson_r2_score': 0.47344758510546942, 'mean_absolute_error': 0.73410667094541648}
+computed_metrics: [0.26880779283129125]
+computed_metrics: [0.70122982180252114]
+Test scores
+{'pearson_r2_score': 0.26880779283129125, 'mean_absolute_error': 0.70122982180252114}
+
+stratified:
+
+computed_metrics: [0.52104593336758609]
+computed_metrics: [0.72502822424550928]
+Train scores
+{'pearson_r2_score': 0.52104593336758609, 'mean_absolute_error': 0.72502822424550928}
+computed_metrics: [0.52108614047175028]
+computed_metrics: [0.74887111908720128]
+Test scores
+{'pearson_r2_score': 0.52108614047175028, 'mean_absolute_error': 0.74887111908720128}
+
+temporal:
+
+computed_metrics: [0.520894674695486]
+computed_metrics: [0.69417150467133804]
+Train scores
+{'pearson_r2_score': 0.520894674695486, 'mean_absolute_error': 0.69417150467133804}
+computed_metrics: [0.55760779958545748]
+computed_metrics: [0.69660922121858726]
+Test scores
+{'pearson_r2_score': 0.55760779958545748, 'mean_absolute_error': 0.69660922121858726}
+
