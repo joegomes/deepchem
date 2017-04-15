@@ -1,0 +1,17 @@
+
+random:
+{'pearson_r2_score': 0.7951585148250323, 'mean_absolute_error': 0.51552606278435908}
+{'pearson_r2_score': 0.49480876619371417, 'mean_absolute_error': 0.69637901495052346}
+
+scaffold:
+{'pearson_r2_score': 0.75532905745084633, 'mean_absolute_error': 0.52565149940519906}
+{'pearson_r2_score': 0.20198395797095167, 'mean_absolute_error': 1.1197869852612625}
+
+stratified:
+{'pearson_r2_score': 0.83774621189962317, 'mean_absolute_error': 0.40243845767060077}
+{'pearson_r2_score': 0.3604299712217201, 'mean_absolute_error': 0.81664161090352416}
+
+temporal:
+{'pearson_r2_score': 0.78533073060084713, 'mean_absolute_error': 0.50409183028770144}
+{'pearson_r2_score': 0.43167813359049539, 'mean_absolute_error': 0.873190871597324}
+
