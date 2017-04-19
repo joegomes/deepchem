@@ -316,19 +316,40 @@ def AtomicConvolutionLayer(X, Nbrs, Nbrs_Z, atom_types, radial_params, boxsize,
   R = DistanceMatrix(D)
   sym = []
   rsf_zeros = tf.zeros((B, N, M))
-  for param in radial_params:
 
-    # We apply the radial pooling filter before atom type conv
-    # to reduce computation
-    rsf = RadialSymmetryFunction(R, *param)
+  if not atom_types:
+    cond = tf.not_equal(Nbrs_Z, 0.0)
+    w = tf.Variable(tf.truncated_normal([1], mean=0., stddev=1.))
+    R_t = tf.where(cond, R, rsf_zeros)
+    R_t *= w
+    for param in radial_params:
+      rsf = RadialSymmetryFunction(R_t, *param)
+      sym.append(tf.reduce_sum(rsf, 2))
+  else:
+    for j in range(len(atom_types)):
+      cond = tf.equal(Nbrs_Z, atom_types[j])
+      w = tf.Variable(tf.truncated_normal([1], mean=0., stddev=1./np.sqrt(len(atom_types))))
+      R_t = tf.where(cond, R, rsf_zeros)
+      R_t *= w
+      for param in radial_params:
+        w_pool = tf.Variable(tf.truncated_normal([1], mean=0., stddev=1./np.sqrt(len(radial_params))))
+        b_pool = tf.Variable(0.)
+        rsf = RadialSymmetryFunction(R_t, *param)
+        sym.append(w_pool*tf.reduce_sum(rsf, 2)+b_pool)
+    
+  #for param in radial_params:
 
-    if not atom_types:
-      cond = tf.not_equal(Nbrs_Z, 0.0)
-      sym.append(tf.reduce_sum(tf.where(cond, rsf, rsf_zeros), 2))
-    else:
-      for j in range(len(atom_types)):
-        cond = tf.equal(Nbrs_Z, atom_types[j])
-        sym.append(tf.reduce_sum(tf.where(cond, rsf, rsf_zeros), 2))
+  #  # We apply the radial pooling filter before atom type conv
+  #  # to reduce computation
+  #  rsf = RadialSymmetryFunction(R, *param)
+
+  #  if not atom_types:
+  #    cond = tf.not_equal(Nbrs_Z, 0.0)
+  #    sym.append(tf.reduce_sum(tf.where(cond, rsf, rsf_zeros), 2))
+  #  else:
+  #    for j in range(len(atom_types)):
+  #      cond = tf.equal(Nbrs_Z, atom_types[j])
+  #      sym.append(tf.reduce_sum(tf.where(cond, rsf, rsf_zeros), 2))
 
   layer = tf.stack(sym)
   layer = tf.transpose(layer, [1, 2, 0])
