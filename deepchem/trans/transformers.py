@@ -127,6 +127,12 @@ class NormalizationTransformer(Transformer):
       y_stds = np.array(y_stds)
       y_stds[y_stds == 0] = 1.
       self.y_stds = y_stds
+
+      print("y_means:")
+      print(y_means)
+      print("y_stds:")
+      print(y_stds)
+
     self.transform_gradients = transform_gradients
     if self.transform_gradients:
       true_grad, ydely_means = get_grad_statistics(dataset)

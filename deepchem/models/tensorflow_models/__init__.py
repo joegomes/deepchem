@@ -44,11 +44,12 @@ def softmax(x):
 
 class TensorflowGraph(object):
   """Simple class that holds information needed to run Tensorflow graph."""
-  def __init__(self, graph, session, name_scopes, output, labels, weights, loss):
+  def __init__(self, graph, session, name_scopes, output, energies, labels, weights, loss):
     self.graph = graph
     self.session = session
     self.name_scopes = name_scopes
     self.output = output
+    self.energies = energies
     self.labels = labels
     self.weights = weights
     self.loss = loss
@@ -178,6 +179,10 @@ class TensorflowGraphModel(Model):
     else:
       logdir = tempfile.mkdtemp()
     self.logdir = logdir
+    
+    self.energydir = os.path.join(logdir, "energy")
+    if not os.path.exists(self.energydir):
+      os.makedirs(self.energydir)
 
     # Guard variable to make sure we don't Restore() this model
     # from a disk checkpoint more than once.
@@ -219,7 +224,7 @@ class TensorflowGraphModel(Model):
     with graph.as_default():
       if seed is not None:
         tf.set_random_seed(seed)
-      output = self.build(graph, name_scopes, training)
+      output, energies = self.build(graph, name_scopes, training)
       labels = self.add_label_placeholders(graph, name_scopes)
       weights = self.add_example_weight_placeholders(graph, name_scopes)
 
@@ -232,6 +237,7 @@ class TensorflowGraphModel(Model):
                            session=shared_session,
                            name_scopes=name_scopes,
                            output=output,
+                           energies=energies,
                            labels=labels,
                            weights=weights,
                            loss=loss)
@@ -317,15 +323,25 @@ class TensorflowGraphModel(Model):
               log("On batch %d" % ind, self.verbose)
             # Run training op.
             feed_dict = self.construct_feed_dict(X_b, y_b, w_b, ids_b)
-            fetches = self.train_graph.output + [
+            fetches = self.train_graph.output + self.train_graph.energies + [
                 train_op, self.train_graph.loss]
             fetched_values = sess.run(fetches, feed_dict=feed_dict)
             output = fetched_values[:len(self.train_graph.output)]
+            energies = fetched_values[len(self.train_graph.output):len(self.train_graph.energies)+1]
             loss = fetched_values[-1]
             avg_loss += loss
             y_pred = np.squeeze(np.array(output))
             y_b = y_b.flatten()
             n_batches += 1
+
+            for i, ids in enumerate(ids_b):
+              id_energy_file = os.path.join(self.energydir, str(ids)+"_frag1_"+str(epoch).zfill(3))
+              np.savetxt(id_energy_file, energies[0][i,:])
+              id_energy_file = os.path.join(self.energydir, str(ids)+"_frag2_"+str(epoch).zfill(3))
+              np.savetxt(id_energy_file, energies[1][i,:])
+              id_energy_file = os.path.join(self.energydir, str(ids)+"_complex_"+str(epoch).zfill(3))
+              np.savetxt(id_energy_file, energies[2][i,:])
+
           saver.save(sess, self._save_path, global_step=epoch)
           avg_loss = float(avg_loss)/n_batches
           log('Ending epoch %d: Average loss %g' % (epoch, avg_loss), self.verbose)
