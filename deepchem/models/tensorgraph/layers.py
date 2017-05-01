@@ -386,7 +386,7 @@ class L2Loss(Layer):
     in_layers = convert_to_layers(in_layers)
     guess, label = in_layers[0], in_layers[1]
     self.out_tensor = tf.reduce_mean(
-        tf.square(guess.out_tensor - label.out_tensor))
+        tf.square(guess.out_tensor - label.out_tensor), axis=0)
     return self.out_tensor
 
 
@@ -834,6 +834,24 @@ class GraphGather(Layer):
     self.out_tensor = mol_features
     return mol_features
 
+class CombineFeatures(Layer):
+
+  def create_tensor(self, in_layers=None):
+    if in_layers is None:
+      in_layers = self.in_layers
+    in_layers = convert_to_layers(in_layers)
+
+    tensor1 = in_layers[0].out_tensor
+    tensor2 = in_layers[1].out_tensor
+    shape1 = tensor1.get_shape()
+    shape2 = tensor1.get_shape()
+    feat1 = int(shape1[1])
+    feat2 = int(shape2[1])
+    assert len(shape1) == 2
+    assert len(shape2) == 2
+
+    self.out_tensor = tf.reshape(tf.stack([tensor1, tensor2], axis=1), [-1, feat1+feat2])
+    return self.out_tensor
 
 class BatchNorm(Layer):
 

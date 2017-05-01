@@ -217,7 +217,7 @@ class GeneratorEvaluator(object):
     else:
       y_pred = self.model.predict_on_generator(generator_closure())
       y = np.transpose(np.array(y), axes=[0, 2, 1, 3])
-      y = np.squeeze(y, axis=(0, -1))
+      y = np.squeeze(y, axis=(-1))
       y = np.reshape(y, newshape=(-1, len(self.label_keys)))
       y_pred = np.squeeze(y_pred, axis=-1)
     if len(w) != 0:
@@ -226,6 +226,14 @@ class GeneratorEvaluator(object):
     all_task_scores = {}
 
     y = undo_transforms(y, self.output_transformers)
+    y_pred = undo_transforms(y_pred, self.output_transformers)
+
+    import time
+    outfile = str(time.time())+".csv"
+    y_out = "y_"+outfile
+    y_pred_out = "y_pred_"+outfile
+    np.savetxt(y_out, y)
+    np.savetxt(y_pred_out, y_pred)
 
     # Compute multitask metrics
     for metric in metrics:
