@@ -191,6 +191,7 @@ class GeneratorEvaluator(object):
     self.model.build()
     y = []
     w = []
+    ids = []
 
     def generator_closure():
       for feed_dict in self.generator:
@@ -202,6 +203,8 @@ class GeneratorEvaluator(object):
           w.append(feed_dict[weight])
           del feed_dict[weight]
         y.append(labels)
+        ids.append(feed_dict["ids"])
+        del feed_dict["ids"]        
         yield feed_dict
 
     if not len(metrics):
@@ -222,6 +225,7 @@ class GeneratorEvaluator(object):
       y_pred = np.squeeze(y_pred, axis=-1)
     if len(w) != 0:
       w = np.reshape(w, newshape=y.shape)
+    ids = np.reshape(np.array(ids), (-1,))
     multitask_scores = {}
     all_task_scores = {}
 
@@ -232,8 +236,10 @@ class GeneratorEvaluator(object):
     outfile = str(time.time())+".csv"
     y_out = "y_"+outfile
     y_pred_out = "y_pred_"+outfile
+    ids_out = "ids_"+outfile
     np.savetxt(y_out, y)
     np.savetxt(y_pred_out, y_pred)
+    np.savetxt(ids_out, ids, fmt="%s")
 
     # Compute multitask metrics
     for metric in metrics:

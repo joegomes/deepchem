@@ -121,6 +121,7 @@ class TensorGraph(Model):
         while True:
           yield {}
       for d in feed_dict_generator:
+        del d["ids"]
         yield {k.out_tensor: v for k, v in six.iteritems(d)}
 
     if not self.built:
