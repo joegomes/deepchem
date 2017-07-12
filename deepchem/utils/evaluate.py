@@ -239,7 +239,7 @@ class GeneratorEvaluator(object):
     ids_out = "ids_"+outfile
     np.savetxt(y_out, y)
     np.savetxt(y_pred_out, y_pred)
-    np.savetxt(ids_out, ids, fmt="%s")
+    np.savetxt(ids_out, ids, fmt=str("%s"))
 
     # Compute multitask metrics
     for metric in metrics:
