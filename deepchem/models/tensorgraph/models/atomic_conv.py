@@ -59,9 +59,10 @@ def InitializeWeightsBiases(prev_layer_size,
 
 class AtomicConvScore(Layer):
 
-  def __init__(self, atom_types, layer_sizes, **kwargs):
+  def __init__(self, atom_types, layer_sizes, n_tasks, **kwargs):
     self.atom_types = atom_types
     self.layer_sizes = layer_sizes
+    self.n_tasks = n_tasks
     super(AtomicConvScore, self).__init__(**kwargs)
 
   def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
@@ -69,13 +70,14 @@ class AtomicConvScore(Layer):
     frag2_layer = self.in_layers[1].out_tensor
     complex_layer = self.in_layers[2].out_tensor
 
-    frag1_z = self.in_layers[3].out_tensor
-    frag2_z = self.in_layers[4].out_tensor
-    complex_z = self.in_layers[5].out_tensor
+    frag1_z = tf.tile(tf.expand_dims(self.in_layers[3].out_tensor, axis=2), [1, 1, self.n_tasks])
+    frag2_z = tf.tile(tf.expand_dims(self.in_layers[4].out_tensor, axis=2), [1, 1, self.n_tasks])
+    complex_z = tf.tile(tf.expand_dims(self.in_layers[5].out_tensor, axis=2), [1, 1, self.n_tasks])
 
     atom_types = self.atom_types
     layer_sizes = self.layer_sizes
     num_layers = len(layer_sizes)
+    n_tasks = self.n_tasks
     weight_init_stddevs = [1 / np.sqrt(x) for x in layer_sizes]
     bias_init_consts = [0.0] * num_layers
 
@@ -105,7 +107,7 @@ class AtomicConvScore(Layer):
         weights[ind].append(weight)
         biases[ind].append(bias)
         prev_layer_size = layer_sizes[i]
-      weight, bias = InitializeWeightsBiases(prev_layer_size, 1)
+      weight, bias = InitializeWeightsBiases(prev_layer_size, n_tasks)
       output_weights[ind].append(weight)
       output_biases[ind].append(bias)
 
@@ -117,9 +119,8 @@ class AtomicConvScore(Layer):
         layer = tf.nn.relu(layer)
         prev_layer = layer
 
-      output_layer = tf.squeeze(
-          tf.nn.xw_plus_b(prev_layer, output_weights[atomtype][0],
-                          output_biases[atomtype][0]))
+      output_layer = tf.nn.xw_plus_b(prev_layer, output_weights[atomtype][0],
+                          output_biases[atomtype][0])
       return output_layer
 
     frag1_zeros = tf.zeros_like(frag1_z, dtype=tf.float32)
@@ -146,12 +147,13 @@ class AtomicConvScore(Layer):
     frag1_outputs = tf.add_n(frag1_atomtype_energy)
     frag2_outputs = tf.add_n(frag2_atomtype_energy)
     complex_outputs = tf.add_n(complex_atomtype_energy)
-
+  
     frag1_energy = tf.reduce_sum(frag1_outputs, 1)
     frag2_energy = tf.reduce_sum(frag2_outputs, 1)
     complex_energy = tf.reduce_sum(complex_outputs, 1)
     binding_energy = complex_energy - (frag1_energy + frag2_energy)
-    self.out_tensor = tf.expand_dims(binding_energy, axis=1)
+    #self.out_tensor = tf.expand_dims(binding_energy, axis=1)
+    self.out_tensor = binding_energy
     return self.out_tensor
 
 
@@ -161,13 +163,14 @@ def atomic_conv_model(
     complex_num_atoms=701,
     max_num_neighbors=12,
     batch_size=24,
-    at=[6, 7., 8., 9., 11., 12., 15., 16., 17., 20., 25., 30., 35., 53., -1.],
+    at=[6, 7., 8., 9., 11., 12., 15., 16., 17., 20., 25., 30., 35., 53.],
     radial=[[
         1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
         8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0
     ], [0.0, 4.0, 8.0], [0.4]],
     layer_sizes=[32, 32, 16],
-    learning_rate=0.001):
+    learning_rate=0.001,
+    n_tasks=1):
   rp = [x for x in itertools.product(*radial)]
   frag1_X = Feature(shape=(batch_size, frag1_num_atoms, 3))
   frag1_nbrs = Feature(shape=(batch_size, frag1_num_atoms, max_num_neighbors))
@@ -207,11 +210,12 @@ def atomic_conv_model(
   score = AtomicConvScore(
       at,
       layer_sizes,
+      n_tasks,
       in_layers=[
           frag1_conv, frag2_conv, complex_conv, frag1_z, frag2_z, complex_z
       ])
 
-  label = Label(shape=(None, 1))
+  label = Label(shape=(None, n_tasks))
   loss = ReduceMean(in_layers=L2Loss(in_layers=[score, label]))
 
   def feed_dict_generator(dataset, batch_size, epochs=1, pad_batches=True):
@@ -221,7 +225,7 @@ def atomic_conv_model(
       def place_holder(i):
         if i in at:
           return i
-        return -1
+        return 0
 
       return np.array([place_holder(x) for x in z])
 
@@ -300,7 +304,7 @@ def atomic_conv_model(
         orig_dict[complex_nbrs] = complex_Nbrs
         orig_dict[complex_nbrs_z] = complex_Nbrs_Z
         orig_dict[complex_z] = complex_Z_b
-        orig_dict[label] = np.reshape(y_b, newshape=(batch_size, 1))
+        orig_dict[label] = np.reshape(y_b, newshape=(batch_size, n_tasks))
         yield orig_dict
 
   tg = TensorGraph(

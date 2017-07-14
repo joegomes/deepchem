@@ -24,43 +24,37 @@ np.random.seed(seed)
 tf.set_random_seed(seed)
 
 base_dir = os.getcwd()
-data_dir = os.path.join(base_dir, "datasets")
-train_dir = os.path.join(data_dir, "scaffold_train")
-test_dir = os.path.join(data_dir, "scaffold_test")
+data_dir = os.path.join(base_dir, "core_datasets")
+train_dir = os.path.join(data_dir, "core_random_train")
+test_dir = os.path.join(data_dir, "core_random_valid")
 
 train_dataset = dc.data.DiskDataset(train_dir)
 test_dataset = dc.data.DiskDataset(test_dir)
-pdbbind_tasks = ["-logKd/Ki"]
+pdbbind_tasks = ["Ki", "Kd", "IC50"]
 transformers = []
 
 y_train = train_dataset.y
 y_train *= -1 * 2.479 / 4.184
-train_dataset = dc.data.DiskDataset.from_numpy(
+train_dataset = dc.data.NumpyDataset(
     train_dataset.X,
     y_train,
     train_dataset.w,
-    train_dataset.ids,
-    tasks=pdbbind_tasks)
+    train_dataset.ids)
 
 y_test = test_dataset.y
 y_test *= -1 * 2.479 / 4.184
-test_dataset = dc.data.DiskDataset.from_numpy(
+test_dataset = dc.data.NumpyDataset(
     test_dataset.X,
     y_test,
     test_dataset.w,
-    test_dataset.ids,
-    tasks=pdbbind_tasks)
+    test_dataset.ids)
 
-batch_size = 24
+batch_size = 12
 radial1 = [
     [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5],
-    [
-        1.5, 2.5, 3.5, 4.5, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0,
-        10.5
-    ],
+    [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.5, 8.5, 9.5, 10.5],
 ]
 radial2 = [
-    [0.0, 2.0, 4.0],
     [0.0, 1.0, 2.0],
     [0.0, 1.5, 3.0],
 ]
@@ -70,10 +64,13 @@ radial3 = [
 layer_sizes = [
     [64, 32, 16],
     [32, 16, 8],
+    [64, 32, 16, 8],
 ]
 
 learning_rates = [
     0.001,
+    0.0005,
+    0.00025,
 ]
 
 epochs = [10]
@@ -83,21 +80,23 @@ def params():
   for values in itertools.product(radial1, radial2, radial3, layer_sizes,
                                   learning_rates, epochs):
     d = {
-        "frag1_num_atoms": 70,
-        "frag2_num_atoms": 634,
-        "complex_num_atoms": 701,
+        "frag1_num_atoms": 140,
+        "frag2_num_atoms": 1356,
+        "complex_num_atoms": 1443,
+        "max_num_neighbors": 24,
         "radial": [values[0], values[1], values[2]],
         "layer_sizes": values[3],
         "learning_rate": values[4],
         "epochs": values[5],
-        "n_tasks": 1
+        "n_tasks": 3,
+        "batch_size": batch_size
     }
     yield d
 
 
 metric = [
-    dc.metrics.Metric(dc.metrics.mean_absolute_error, mode="regression"),
-    dc.metrics.Metric(dc.metrics.pearson_r2_score, mode="regression")
+    dc.metrics.Metric(dc.metrics.mean_absolute_error,task_averager=np.mean,  mode="regression"),
+    dc.metrics.Metric(dc.metrics.pearson_r2_score, task_averager=np.mean, mode="regression")
 ]
 for param in params():
   num_epochs = param['epochs']
