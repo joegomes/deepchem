@@ -146,7 +146,58 @@ def load_qm7(featurizer=None, split='random'):
   }
   splitter = splitters[split]
   train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
-      dataset)
+      dataset, train_dir="train_dataset", valid_dir="valid_dataset", test_dir="test_dataset")
+
+  transformers = [
+      dc.trans.NormalizationTransformer(
+          transform_y=True, dataset=train_dataset)
+  ]
+
+  for transformer in transformers:
+    train_dataset = transformer.transform(train_dataset)
+    valid_dataset = transformer.transform(valid_dataset)
+    test_dataset = transformer.transform(test_dataset)
+
+  return qm7_tasks, (train_dataset, valid_dataset, test_dataset), transformers
+
+def load_qm7_from_disk(featurizer=None, split='random'):
+  """Load qm7 datasets."""
+  # Featurize qm7 dataset
+  #print("About to featurize qm7 dataset.")
+  #current_dir = os.path.dirname(os.path.realpath(__file__))
+  #dataset_file = os.path.join(current_dir, "./gdb7.sdf")
+  qm7_tasks = ["u0_atom"]
+  #if featurizer is None:
+  #  featurizer = dc.feat.CoulombMatrixEig(23)
+  #loader = dc.data.SDFLoader(
+  #    tasks=qm7_tasks,
+  #    smiles_field="smiles",
+  #    mol_field="mol",
+  #    featurizer=featurizer)
+  #dataset = loader.featurize(dataset_file)
+
+  #split_file = os.path.join(current_dir, "./qm7_splits.csv")
+
+  #split_indices = []
+  #with open(split_file, 'r') as f:
+  #  reader = csv.reader(f)
+  #  for row in reader:
+  #    row_int = (np.asarray(list(map(int, row)))).tolist()
+  #    split_indices.append(row_int)
+
+  #splitters = {
+  #    'index': dc.splits.IndexSplitter(),
+  #    'random': dc.splits.RandomSplitter(),
+  #    'indice': dc.splits.IndiceSplitter(valid_indices=split_indices[1]),
+  #    'stratified': dc.splits.SingletaskStratifiedSplitter(task_number=0)
+  #}
+  #splitter = splitters[split]
+  #train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
+  #    dataset, train_dir="train_dataset", valid_dir="valid_dataset", test_dir="test_dataset")
+
+  train_dataset = dc.data.DiskDataset("train_dataset")
+  valid_dataset = dc.data.DiskDataset("valid_dataset")
+  test_dataset = dc.data.DiskDataset("test_dataset")
 
   transformers = [
       dc.trans.NormalizationTransformer(

@@ -22,6 +22,14 @@ class AtomicCoordinates(Featurizer):
   """
   name = ['atomic_coordinates']
 
+  def __init__(self,
+               max_num_atoms=None,
+               periodic_box_size=None):
+    self.max_num_atoms = max_num_atoms
+    self.periodic_box_size = periodic_box_size
+    # Type of data created by this featurizer
+    self.dtype = object
+
   def _featurize(self, mol):
     """
     Calculate atomic coodinates.
@@ -33,7 +41,8 @@ class AtomicCoordinates(Featurizer):
     """
 
     N = mol.GetNumAtoms()
-    coords = np.zeros((N, 3))
+    natoms = self.max_num_atoms
+    coords = np.zeros((natoms, 3))
 
     # RDKit stores atomic coordinates in Angstrom. Atomic unit of length is the
     # bohr (1 bohr = 0.529177 Angstrom). Converting units makes gradient calculation
@@ -48,12 +57,12 @@ class AtomicCoordinates(Featurizer):
       coords[atom, 1] = coords_in_bohr[atom].y
       coords[atom, 2] = coords_in_bohr[atom].z
 
-    coords = [coords]
+    #coords = [coords]
     return coords
 
 
-def compute_neighbor_list(coords, neighbor_cutoff, max_num_neighbors,
-                          periodic_box_size):
+def compute_neighbor_list(coords, neighbor_cutoff, max_num_atoms, 
+                          max_num_neighbors, periodic_box_size):
   """Computes a neighbor list from atom coordinates."""
   N = coords.shape[0]
   traj = mdtraj.Trajectory(coords.reshape((1, N, 3)), None)
@@ -64,7 +73,7 @@ def compute_neighbor_list(coords, neighbor_cutoff, max_num_neighbors,
         [[[box_size[0], 0, 0], [0, box_size[1], 0], [0, 0, box_size[2]]]],
         dtype=np.float32)
   neighbors = mdtraj.geometry.compute_neighborlist(traj, neighbor_cutoff)
-  neighbor_list = {}
+  nbr_list = np.zeros((max_num_atoms, max_num_neighbors))
   for i in range(N):
     if max_num_neighbors is not None and len(neighbors[i]) > max_num_neighbors:
       delta = coords[i] - coords.take(neighbors[i], axis=0)
@@ -73,11 +82,12 @@ def compute_neighbor_list(coords, neighbor_cutoff, max_num_neighbors,
       dist = np.linalg.norm(delta, axis=1)
       sorted_neighbors = list(zip(dist, neighbors[i]))
       sorted_neighbors.sort()
-      neighbor_list[
-          i] = [sorted_neighbors[j][1] for j in range(max_num_neighbors)]
+      for j, n in enumerate([sorted_neighbors[j][1] for j in range(max_num_neighbors)]):
+        nbr_list[i, j] = n
     else:
-      neighbor_list[i] = list(neighbors[i])
-  return neighbor_list
+      for j, n in enumerate(list(neighbors[i])):
+        nbr_list[i, j] = n
+  return nbr_list
 
 
 def get_coords(mol):
@@ -113,6 +123,7 @@ class NeighborListAtomicCoordinates(Featurizer):
   """
 
   def __init__(self,
+               max_num_atoms=None,
                max_num_neighbors=None,
                neighbor_cutoff=4,
                periodic_box_size=None):
@@ -121,12 +132,13 @@ class NeighborListAtomicCoordinates(Featurizer):
     if max_num_neighbors is not None:
       if not isinstance(max_num_neighbors, int) or max_num_neighbors <= 0:
         raise ValueError("max_num_neighbors must be positive integer.")
+    self.max_num_atoms = max_num_atoms
     self.max_num_neighbors = max_num_neighbors
     self.neighbor_cutoff = neighbor_cutoff
     self.periodic_box_size = periodic_box_size
     # Type of data created by this featurizer
     self.dtype = object
-    self.coordinates_featurizer = AtomicCoordinates()
+    self.coordinates_featurizer = AtomicCoordinates(max_num_atoms=max_num_atoms)
 
   def _featurize(self, mol):
     """
@@ -139,13 +151,14 @@ class NeighborListAtomicCoordinates(Featurizer):
     """
     N = mol.GetNumAtoms()
     # TODO(rbharath): Should this return a list?
-    bohr_coords = self.coordinates_featurizer._featurize(mol)[0]
+    bohr_coords = self.coordinates_featurizer._featurize(mol)
     coords = get_coords(mol)
     neighbor_list = compute_neighbor_list(coords, self.neighbor_cutoff,
+                                          self.max_num_atoms,
                                           self.max_num_neighbors,
                                           self.periodic_box_size)
-    return (bohr_coords, neighbor_list)
-
+    #return (bohr_coords, neighbor_list)
+    return (list(bohr_coords), list(neighbor_list))
 
 class NeighborListComplexAtomicCoordinates(ComplexFeaturizer):
   """

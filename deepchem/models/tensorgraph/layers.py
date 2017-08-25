@@ -469,6 +469,20 @@ class Transpose(Layer):
       self.out_tensor = out_tensor
     return out_tensor
 
+class ReLU(Layer):
+
+  def __init__(self, **kwargs):
+    super(ReLU, self).__init__(**kwargs)
+
+  def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
+    inputs = self._get_input_tensors(in_layers)
+    if len(inputs) != 1:
+      raise ValueError("Only One Parent to ReLU")
+    out_tensor = tf.nn.relu(inputs[0])
+    if set_tensors:
+      self.out_tensor = out_tensor
+    return out_tensor
+
 
 class CombineMeanStd(Layer):
 
@@ -1125,6 +1139,7 @@ class Conv2D(Layer):
         normalizer_fn=self.normalizer_fn,
         scope=self.scope_name)
     out_tensor = out_tensor
+    print(out_tensor.get_shape())
     if set_tensors:
       self._record_variable_scope(self.scope_name)
       self.out_tensor = out_tensor
@@ -2521,6 +2536,141 @@ class AtomicConvolution(Layer):
     """
 
     return tf.exp(-e * (R - rs)**2)
+
+  def distance_tensor(self, X, Nbrs, boxsize, B, N, M, d):
+    """Calculates distance tensor for batch of molecules.
+
+    B = batch_size, N = max_num_atoms, M = max_num_neighbors, d = num_features
+
+    Parameters
+    ----------
+    X: tf.Tensor of shape (B, N, d)
+      Coordinates/features tensor.
+    Nbrs: tf.Tensor of shape (B, N, M)
+      Neighbor list tensor.
+    boxsize: float or None
+      Simulation box length [Angstrom].
+
+    Returns
+    -------
+    D: tf.Tensor of shape (B, N, M, d)
+      Coordinates/features distance tensor.
+
+    """
+    atom_tensors = tf.unstack(X, axis=1)
+    nbr_tensors = tf.unstack(Nbrs, axis=1)
+    D = []
+    if boxsize is not None:
+      for atom, atom_tensor in enumerate(atom_tensors):
+        nbrs = self.gather_neighbors(X, nbr_tensors[atom], B, N, M, d)
+        nbrs_tensors = tf.unstack(nbrs, axis=1)
+        for nbr, nbr_tensor in enumerate(nbrs_tensors):
+          _D = tf.subtract(nbr_tensor, atom_tensor)
+          _D = tf.subtract(_D, boxsize * tf.round(tf.div(_D, boxsize)))
+          D.append(_D)
+    else:
+      for atom, atom_tensor in enumerate(atom_tensors):
+        nbrs = self.gather_neighbors(X, nbr_tensors[atom], B, N, M, d)
+        nbrs_tensors = tf.unstack(nbrs, axis=1)
+        for nbr, nbr_tensor in enumerate(nbrs_tensors):
+          _D = tf.subtract(nbr_tensor, atom_tensor)
+          D.append(_D)
+    D = tf.stack(D)
+    D = tf.transpose(D, perm=[1, 0, 2])
+    D = tf.reshape(D, [B, N, M, d])
+    return D
+
+  def gather_neighbors(self, X, nbr_indices, B, N, M, d):
+    """Gathers the neighbor subsets of the atoms in X.
+
+    B = batch_size, N = max_num_atoms, M = max_num_neighbors, d = num_features
+
+    Parameters
+    ----------
+    X: tf.Tensor of shape (B, N, d)
+      Coordinates/features tensor.
+    atom_indices: tf.Tensor of shape (B, M)
+      Neighbor list for single atom.
+
+    Returns
+    -------
+    neighbors: tf.Tensor of shape (B, M, d)
+      Neighbor coordinates/features tensor for single atom.
+
+    """
+
+    example_tensors = tf.unstack(X, axis=0)
+    example_nbrs = tf.unstack(nbr_indices, axis=0)
+    all_nbr_coords = []
+    for example, (example_tensor,
+                  example_nbr) in enumerate(zip(example_tensors, example_nbrs)):
+      nbr_coords = tf.gather(example_tensor, example_nbr)
+      all_nbr_coords.append(nbr_coords)
+    neighbors = tf.stack(all_nbr_coords)
+    return neighbors
+
+  def distance_matrix(self, D):
+    """Calcuates the distance matrix from the distance tensor
+
+    B = batch_size, N = max_num_atoms, M = max_num_neighbors, d = num_features
+
+    Parameters
+    ----------
+    D: tf.Tensor of shape (B, N, M, d)
+      Distance tensor.
+
+    Returns
+    -------
+    R: tf.Tensor of shape (B, N, M)
+       Distance matrix.
+
+    """
+
+    R = tf.reduce_sum(tf.multiply(D, D), 3)
+    R = tf.sqrt(R)
+    return R
+
+class NbrDistanceMatrix(Layer):
+
+  def __init__(self, boxsize=None, **kwargs):
+    """Neighbor-listed Distance Matrix layer
+    """
+    self.boxsize = None
+    super(NbrDistanceMatrix, self).__init__(**kwargs)
+
+  def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
+    """
+    Parameters
+    ----------
+    X: tf.Tensor of shape (B, N, d)
+      Coordinates/features.
+    Nbrs: tf.Tensor of shape (B, N, M)
+      Neighbor list.
+
+    Returns
+    -------
+    layer: tf.Tensor of shape (B, N, M)
+      A new tensor representing the distance matrix
+    """
+    inputs = self._get_input_tensors(in_layers)
+    X = inputs[0]
+    Nbrs = tf.to_int32(inputs[1])
+
+    # N: Maximum number of atoms
+    # M: Maximum number of neighbors
+    # d: Number of coordinates/features/filters
+    # B: Batch Size
+    N = X.get_shape()[-2].value
+    d = X.get_shape()[-1].value
+    M = Nbrs.get_shape()[-1].value
+    B = X.get_shape()[0].value
+
+    D = self.distance_tensor(X, Nbrs, self.boxsize, B, N, M, d)
+    out_tensor = self.distance_matrix(D)
+    if set_tensors:
+      self._record_variable_scope(self.name)
+      self.out_tensor = out_tensor
+    return out_tensor
 
   def distance_tensor(self, X, Nbrs, boxsize, B, N, M, d):
     """Calculates distance tensor for batch of molecules.
