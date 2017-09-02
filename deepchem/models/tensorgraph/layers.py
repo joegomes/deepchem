@@ -301,7 +301,10 @@ class Dense(Layer):
     self.time_series = time_series
     try:
       parent_shape = self.in_layers[0].shape
-      self._shape = (parent_shape[0], out_channels)
+      if len(parent_shape) == 2:
+        self._shape = (parent_shape[0], out_channels)
+      elif len(parent_shape) == 3:
+        self._shape = (parent_shape[0], parent_shape[1], out_channels)
     except:
       pass
     self._reuse = False
@@ -1138,8 +1141,7 @@ class Conv2D(Layer):
         activation_fn=self.activation_fn,
         normalizer_fn=self.normalizer_fn,
         scope=self.scope_name)
-    out_tensor = out_tensor
-    print(out_tensor.get_shape())
+    #out_tensor = out_tensor
     if set_tensors:
       self._record_variable_scope(self.scope_name)
       self.out_tensor = out_tensor
@@ -2630,12 +2632,38 @@ class AtomicConvolution(Layer):
     R = tf.sqrt(R)
     return R
 
+class AtomtypeConvolution(Layer):
+
+  def __init__(self, atom_types=[], **kwargs):
+    """Filter tensor by atom types."""
+    self.atom_types = [int(at) for at in atom_types]
+    super(AtomtypeConvolution, self).__init__(**kwargs)
+
+  def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
+
+    inputs = self._get_input_tensors(in_layers)
+    X = inputs[0]
+    xdim = int(X.shape[-1])
+    Nbrs_Z = tf.tile(tf.expand_dims(inputs[1], -1), [1,1,1,xdim])
+    X_zeros = tf.zeros_like(X)
+
+    out_tensors = []
+    for at in self.atom_types:
+      cond = tf.equal(Nbrs_Z, at)
+      out_tensors.append(tf.where(cond, X, X_zeros))
+
+    out_tensor = tf.concat(out_tensors, axis=-1)
+    if set_tensors:
+      self._record_variable_scope(self.name)
+      self.out_tensor = out_tensor
+    return out_tensor
+
 class NbrDistanceMatrix(Layer):
 
   def __init__(self, boxsize=None, **kwargs):
     """Neighbor-listed Distance Matrix layer
     """
-    self.boxsize = None
+    self.boxsize = boxsize
     super(NbrDistanceMatrix, self).__init__(**kwargs)
 
   def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
@@ -2666,7 +2694,13 @@ class NbrDistanceMatrix(Layer):
     B = X.get_shape()[0].value
 
     D = self.distance_tensor(X, Nbrs, self.boxsize, B, N, M, d)
-    out_tensor = self.distance_matrix(D)
+    D_zeros = tf.zeros_like(D)
+    R = self.distance_matrix(D)
+    R_zeros = tf.zeros_like(R)
+    R_tensor = tf.expand_dims(tf.where(tf.greater(R, R_zeros), tf.div(1., R), R_zeros), -1)
+    D_tensor = tf.where(tf.greater(D, D_zeros), tf.div(D, tf.tile(tf.expand_dims(R, -1), [1, 1, 1, d])), D_zeros)
+    out_tensor = tf.concat([R_tensor, D_tensor], axis=-1)
+
     if set_tensors:
       self._record_variable_scope(self.name)
       self.out_tensor = out_tensor

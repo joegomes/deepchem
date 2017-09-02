@@ -41,7 +41,10 @@ class AtomicCoordinates(Featurizer):
     """
 
     N = mol.GetNumAtoms()
-    natoms = self.max_num_atoms
+    if self.max_num_atoms is not None:
+      natoms = self.max_num_atoms
+    else:
+      n_atoms = N
     coords = np.zeros((natoms, 3))
 
     # RDKit stores atomic coordinates in Angstrom. Atomic unit of length is the
@@ -57,7 +60,7 @@ class AtomicCoordinates(Featurizer):
       coords[atom, 1] = coords_in_bohr[atom].y
       coords[atom, 2] = coords_in_bohr[atom].z
 
-    #coords = [coords]
+    coords = [coords]
     return coords
 
 
@@ -73,7 +76,7 @@ def compute_neighbor_list(coords, neighbor_cutoff, max_num_atoms,
         [[[box_size[0], 0, 0], [0, box_size[1], 0], [0, 0, box_size[2]]]],
         dtype=np.float32)
   neighbors = mdtraj.geometry.compute_neighborlist(traj, neighbor_cutoff)
-  nbr_list = np.zeros((max_num_atoms, max_num_neighbors))
+  nbr_list = np.zeros((max_num_atoms, max_num_neighbors), dtype=np.int32)
   for i in range(N):
     if max_num_neighbors is not None and len(neighbors[i]) > max_num_neighbors:
       delta = coords[i] - coords.take(neighbors[i], axis=0)
@@ -140,6 +143,18 @@ class NeighborListAtomicCoordinates(Featurizer):
     self.dtype = object
     self.coordinates_featurizer = AtomicCoordinates(max_num_atoms=max_num_atoms)
 
+  def get_Z_matrix(self, mol, max_atoms):
+    return pad_array(
+        np.array([atom.GetAtomicNum() for atom in mol.GetAtoms()]), max_atoms)
+
+  def get_neighbor_Z_matrix(self, neighbor_list, z):
+
+    neighbor_z = np.zeros_like(neighbor_list)
+    for i in range(neighbor_z.shape[0]):
+      for j in range(neighbor_z.shape[1]):
+        neighbor_z[i,j] = z[neighbor_list[i,j]]
+    return neighbor_z
+
   def _featurize(self, mol):
     """
     Compute neighbor list.
@@ -149,16 +164,15 @@ class NeighborListAtomicCoordinates(Featurizer):
       mol: rdkit Mol
         To be featurized.
     """
-    N = mol.GetNumAtoms()
-    # TODO(rbharath): Should this return a list?
-    bohr_coords = self.coordinates_featurizer._featurize(mol)
+    bohr_coords = self.coordinates_featurizer._featurize(mol)[0]
     coords = get_coords(mol)
+    z = self.get_Z_matrix(mol, self.max_num_atoms)
     neighbor_list = compute_neighbor_list(coords, self.neighbor_cutoff,
                                           self.max_num_atoms,
                                           self.max_num_neighbors,
                                           self.periodic_box_size)
-    #return (bohr_coords, neighbor_list)
-    return (list(bohr_coords), list(neighbor_list))
+    neighbor_z = self.get_neighbor_Z_matrix(neighbor_list, z)
+    return (list(bohr_coords), list(neighbor_list), list(z), list(neighbor_z))
 
 class NeighborListComplexAtomicCoordinates(ComplexFeaturizer):
   """
@@ -177,7 +191,6 @@ class NeighborListComplexAtomicCoordinates(ComplexFeaturizer):
     self.neighbor_cutoff = neighbor_cutoff
     # Type of data created by this featurizer
     self.dtype = object
-    self.coordinates_featurizer = AtomicCoordinates()
 
   def _featurize_complex(self, mol_pdb_file, protein_pdb_file):
     """

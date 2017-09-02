@@ -382,16 +382,14 @@ class BPGather(Layer):
 
   def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
     """ Merge features together """
-    if in_layers is None:
-      in_layers = self.in_layers
-    in_layers = convert_to_layers(in_layers)
-
-    out_tensor = in_layers[0].out_tensor
-    flags = in_layers[1].out_tensor
+    inputs = self._get_input_tensors(in_layers)
+    out_tensor = inputs[0]
+    flags = inputs[1]
 
     out_tensor = tf.reduce_sum(out_tensor * flags[:, :, 0:1], axis=1)
+    print(out_tensor)
     self.out_tensor = out_tensor
-
+    return self.out_tensor
 
 class AtomicDifferentiatedDense(Layer):
   """ Separate Dense module for different atoms """

@@ -56,8 +56,74 @@ def InitializeWeightsBiases(prev_layer_size,
     b = tf.Variable(biases, name='b')
   return w, b
 
-
 class AtomicConvScore(Layer):
+
+  def __init__(self, atom_types, layer_sizes, dropout_prob, **kwargs):
+    self.atom_types = atom_types
+    self.layer_sizes = layer_sizes
+    self.dropout_prob = dropout_prob
+    super(AtomicConvScore, self).__init__(**kwargs)
+
+  def create_tensor(self, in_layers=None, set_tensors=True, **kwargs):
+    inputs = self._get_input_tensors(in_layers)
+    layer = inputs[0]
+    z = inputs[1]
+
+    atom_types = self.atom_types
+    layer_sizes = self.layer_sizes
+    num_layers = len(layer_sizes)
+    weight_init_stddevs = [1 / np.sqrt(x) for x in layer_sizes]
+    bias_init_consts = [0.0] * num_layers
+
+    weights = []
+    biases = []
+    n_features = int(layer.get_shape()[-1])
+    out_features = int(layer_sizes[-1])
+    z = tf.tile(tf.expand_dims(z, -1), [1, 1, out_features])
+
+    for ind, atomtype in enumerate(atom_types):
+
+      prev_layer_size = n_features
+      weights.append([])
+      biases.append([])
+      for i in range(num_layers):
+        weight, bias = InitializeWeightsBiases(
+            prev_layer_size=prev_layer_size,
+            size=layer_sizes[i],
+            weights=tf.truncated_normal(
+                shape=[prev_layer_size, layer_sizes[i]],
+                stddev=weight_init_stddevs[i]),
+            biases=tf.constant(
+                value=bias_init_consts[i], shape=[layer_sizes[i]]))
+        weights[ind].append(weight)
+        biases[ind].append(bias)
+        prev_layer_size = layer_sizes[i]
+
+    def atomnet(current_input, atomtype):
+      prev_layer = current_input
+      for i in range(num_layers):
+        layer = tf.nn.xw_plus_b(prev_layer, weights[atomtype][i],
+                                biases[atomtype][i])
+        keep_prob = 1.0 - self.dropout_prob[i] * kwargs['training']
+        layer = tf.nn.dropout(layer, keep_prob)
+        layer = tf.nn.relu(layer)
+        prev_layer = layer
+      return layer
+
+    zeros = tf.zeros_like(z, dtype=tf.float32)
+    atomtype_energy = []
+
+    for ind, atomtype in enumerate(atom_types):
+      outputs = tf.map_fn(lambda x: atomnet(x, ind), layer)
+      outputs = tf.transpose(outputs, [1, 0, 2])
+      cond = tf.equal(z, atomtype)
+      atomtype_energy.append(tf.where(cond, outputs, zeros))
+
+    out_tensor = tf.add_n(atomtype_energy)
+    self.out_tensor = out_tensor
+    return self.out_tensor
+
+class FragmentAtomicConvScore(Layer):
 
   def __init__(self, atom_types, layer_sizes, **kwargs):
     self.atom_types = atom_types
