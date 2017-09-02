@@ -10,7 +10,6 @@ __copyright__ = "Copyright 2016, Stanford University"
 __license__ = "LGPL v2.1+"
 
 import numpy as np
-from deepchem.utils.dependencies import mdtraj
 from deepchem.feat import Featurizer
 from deepchem.feat import ComplexFeaturizer
 from deepchem.utils import rdkit_util, pad_array
@@ -68,6 +67,7 @@ def compute_neighbor_list(coords, neighbor_cutoff, max_num_atoms,
                           max_num_neighbors, periodic_box_size):
   """Computes a neighbor list from atom coordinates."""
   N = coords.shape[0]
+  import mdtraj
   traj = mdtraj.Trajectory(coords.reshape((1, N, 3)), None)
   box_size = None
   if periodic_box_size is not None:
@@ -87,6 +87,9 @@ def compute_neighbor_list(coords, neighbor_cutoff, max_num_atoms,
       sorted_neighbors.sort()
       for j, n in enumerate([sorted_neighbors[j][1] for j in range(max_num_neighbors)]):
         nbr_list[i, j] = n
+      neighbor_list[i] = [
+          sorted_neighbors[j][1] for j in range(max_num_neighbors)
+      ]
     else:
       for j, n in enumerate(list(neighbors[i])):
         nbr_list[i, j] = n
