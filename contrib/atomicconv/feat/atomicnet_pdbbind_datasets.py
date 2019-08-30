@@ -9,6 +9,7 @@ from __future__ import unicode_literals
 import os
 import numpy as np
 import pandas as pd
+import deepchem as dc
 from atomicnet_coordinates import ComplexNeighborListFragmentAtomicCoordinates
 
 
@@ -116,14 +117,11 @@ def load_pdbbind_fragment_coordinates(frag1_num_atoms,
 
   # Create some directories for analysis
   # The base_dir holds the results of all analysis
-  if not reload:
-    if os.path.exists(base_dir):
-      shutil.rmtree(base_dir)
   if not os.path.exists(base_dir):
     os.makedirs(base_dir)
   current_dir = os.path.dirname(os.path.realpath(__file__))
   #Make directories to store the raw and featurized datasets.
-  data_dir = os.path.join(base_dir, "dataset")
+  data_dir = os.path.join(base_dir, "sharded_dataset")
 
   # Load PDBBind dataset
   labels_file = os.path.join(pdbbind_dir, datafile)
